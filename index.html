@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>InfraPulse — Operations Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a30;
+      --panel-2: #18223d;
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #eef2ff;
+      --muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-2: #22d3ee;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --bad: #ef4444;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Inter, system-ui, -apple-system, sans-serif; }
+    body { background: radial-gradient(circle at top right, #182346, var(--bg) 55%); color: var(--text); min-height: 100vh; display: flex; }
+
+    /* Sidebar */
+    .sidebar { width: 240px; background: rgba(18, 26, 48, 0.9); border-right: 1px solid var(--border); padding: 24px 18px; display: flex; flex-direction: column; gap: 28px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; letter-spacing: 0.3px; }
+    .brand-dot { width: 12px; height: 12px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: 0 0 14px var(--accent-2); }
+    .nav { display: flex; flex-direction: column; gap: 6px; }
+    .nav button { background: transparent; border: none; color: var(--muted); text-align: left; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 14px; transition: 0.2s; }
+    .nav button:hover, .nav button.active { background: var(--panel-2); color: var(--text); }
+
+    /* Main */
+    .main { flex: 1; padding: 28px; max-width: 1320px; width: 100%; margin: 0 auto; }
+    .topbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+    .topbar h1 { font-size: 24px; font-weight: 700; }
+    .topbar p { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .controls { display: flex; gap: 10px; align-items: center; }
+    .btn { background: linear-gradient(135deg, var(--accent), #4f46e5); color: #fff; border: none; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn:hover { opacity: 0.92; }
+
+    /* KPI Grid */
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+    .kpi-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+    .kpi-val { font-size: 28px; font-weight: 700; margin: 10px 0 6px; }
+    .kpi-sub { font-size: 12px; color: var(--ok); }
+
+    /* Content Grid */
+    .grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 18px; margin-bottom: 24px; }
+    .section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
+    .section-head h2 { font-size: 16px; font-weight: 600; }
+    canvas { width: 100%; height: 240px; display: block; }
+
+    .filter-bar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    input, select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); padding: 9px 12px; border-radius: 10px; font-size: 13px; outline: none; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; }
+    .badge { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; display: inline-block; }
+    .ok { background: rgba(34, 197, 94, 0.15); color: #4ade80; }
+    .warn { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .bad { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+    .feed-item { padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+    .feed-item:last-child { border-bottom: none; }
+    .muted { color: var(--muted); font-size: 12px; }
+
+    @media (max-width: 960px) {
+      body { flex-direction: column; }
+      .sidebar { width: 100%; flex-direction: row; align-items: center; overflow-x: auto; padding: 14px 16px; }
+      .nav { flex-direction: row; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-dot"></span> InfraPulse</div>
+    <nav class="nav">
+      <button class="active" onclick="setTab('overview', this)">Overview</button>
+      <button onclick="setTab('services', this)">Services</button>
+      <button onclick="setTab('activity', this)">Activity</button>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>Cloud &amp; Server Dashboard</h1>
+        <p id="lastUpdated">Live telemetry simulation • Nginx Static + JS</p>
+      </div>
+      <div class="controls">
+        <button class="btn" onclick="refreshMetrics()">↻ Refresh Stats</button>
+      </div>
+    </div>
+
+    <section class="kpis">
+      <div class="card">
+        <div class="kpi-label">Active Requests / min</div>
+        <div class="kpi-val" id="kpiReq">1,428</div>
+        <div class="kpi-sub">▲ +12.4% vs last hour</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Avg Latency</div>
+        <div class="kpi-val" id="kpiLat">38 ms</div>
+        <div class="kpi-sub">● P95 within SLA</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">CPU Load</div>
+        <div class="kpi-val" id="kpiCpu">24%</div>
+        <div class="kpi-sub">4 vCPU healthy</div>
+      </div>
+      <div class="card">
+        <div class="kpi-label">Uptime</div>
+        <div class="kpi-val">99.98%</div>
+        <div class="kpi-sub">Nginx reverse proxy active</div>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <div class="card">
+        <div class="section-head">
+          <h2>Hourly Traffic (Requests)</h2>
+          <span class="muted">Last 7 slots</span>
+        </div>
+        <canvas id="trafficChart"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="section-head">
+          <h2>Recent Events</h2>
+          <span class="muted">Live log</span>
+        </div>
+        <div id="eventList"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Managed Nodes &amp; Apps</h2>
+        <div class="filter-bar">
+          <input id="searchInput" type="text" placeholder="Search node or app..." oninput="renderTable()" />
+          <select id="statusFilter" onchange="renderTable()">
+            <option value="all">All Status</option>
+            <option value="Healthy">Healthy</option>
+            <option value="Degraded">Degraded</option>
+            <option value="Offline">Offline</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Service / Node</th>
+              <th>Region / Host</th>
+              <th>Runtime</th>
+              <th>CPU / RAM</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="nodesBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const nodes = [
+      { name: "nginx-edge-01", host: "127.0.0.1:80", runtime: "Nginx 1.28", res: "4% / 18 MB", status: "Healthy" },
+      { name: "next-dashboard-app", host: "127.0.0.1:3000", runtime: "Next.js 15", res: "19% / 142 MB", status: "Healthy" },
+      { name: "postgres-primary", host: "10.10.0.12:5432", runtime: "PostgreSQL 16", res: "28% / 610 MB", status: "Healthy" },
+      { name: "redis-cache", host: "10.10.0.15:6379", runtime: "Redis 7", res: "9% / 64 MB", status: "Degraded" },
+      { name: "worker-queue-02", host: "10.10.0.21", runtime: "systemd worker", res: "0% / 0 MB", status: "Offline" }
+    ];
+
+    const events = [
+      { title: "Nginx configuration reloaded cleanly", time: "2m ago", tag: "OK" },
+      { title: "Cloudflare tunnel QUIC connection verified", time: "9m ago", tag: "OK" },
+      { title: "High cache miss spike on redis-cache", time: "24m ago", tag: "WARN" },
+      { title: "Automated health check passed", time: "41m ago", tag: "OK" }
+    ];
+
+    let chartData = [620, 840, 790, 1120, 1340, 1210, 1428];
+    const labels = ["15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "Now"];
+
+    function badgeClass(s) {
+      if (s === "Healthy") return "ok";
+      if (s === "Degraded") return "warn";
+      return "bad";
+    }
+
+    function renderTable() {
+      const q = document.getElementById("searchInput").value.toLowerCase();
+      const st = document.getElementById("statusFilter").value;
+      const tbody = document.getElementById("nodesBody");
+      const filtered = nodes.filter(n =>
+        (st === "all" || n.status === st) &&
+        (n.name.toLowerCase().includes(q) || n.host.toLowerCase().includes(q) || n.runtime.toLowerCase().includes(q))
+      );
+      tbody.innerHTML = filtered.map(n => `
+        <tr>
+          <td><strong>${n.name}</strong></td>
+          <td>${n.host}</td>
+          <td>${n.runtime}</td>
+          <td>${n.res}</td>
+          <td><span class="badge ${badgeClass(n.status)}">${n.status}</span></td>
+        </tr>
+      `).join("") || `<tr><td colspan="5" class="muted">No matching services found.</td></tr>`;
+    }
+
+    function renderEvents() {
+      document.getElementById("eventList").innerHTML = events.map(e => `
+        <div class="feed-item">
+          <div>
+            <div>${e.title}</div>
+            <div class="muted">${e.time}</div>
+          </div>
+          <span class="badge ${e.tag === "OK" ? "ok" : "warn"}">${e.tag}</span>
+        </div>
+      `).join("");
+    }
+
+    function drawChart() {
+      const canvas = document.getElementById("trafficChart");
+      const ctx = canvas.getContext("2d");
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+
+      const w = rect.width;
+      const h = rect.height;
+      ctx.clearRect(0, 0, w, h);
+
+      const maxVal = Math.max(...chartData, 100);
+      const padBottom = 28;
+      const padTop = 14;
+      const chartH = h - padBottom - padTop;
+      const stepW = w / chartData.length;
+      const barW = Math.min(36, stepW * 0.48);
+
+      chartData.forEach((val, i) => {
+        const barH = (val / maxVal) * chartH;
+        const x = i * stepW + (stepW - barW) / 2;
+        const y = padTop + (chartH - barH);
+
+        const grad = ctx.createLinearGradient(0, y, 0, y + barH);
+        grad.addColorStop(0, "#22d3ee");
+        grad.addColorStop(1, "#6366f1");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.roundRect(x, y, barW, barH, 6);
+        ctx.fill();
+
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "11px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(labels[i], i * stepW + stepW / 2, h - 8);
+      });
+    }
+
+    function refreshMetrics() {
+      const req = Math.floor(900 + Math.random() * 800);
+      const lat = Math.floor(24 + Math.random() * 35);
+      const cpu = Math.floor(14 + Math.random() * 42);
+      document.getElementById("kpiReq").textContent = req.toLocaleString();
+      document.getElementById("kpiLat").textContent = `${lat} ms`;
+      document.getElementById("kpiCpu").textContent = `${cpu}%`;
+      chartData = [...chartData.slice(1), req];
+      drawChart();
+      document.getElementById("lastUpdated").textContent = `Updated at ${new Date().toLocaleTimeString()} • Nginx Static + JS`;
+    }
+
+    function setTab(tab, btn) {
+      document.querySelectorAll(".nav button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (tab === "services") {
+        document.getElementById("searchInput").focus();
+      } else if (tab === "activity") {
+        document.getElementById("eventList").scrollIntoView({ behavior: "smooth" });
+      }
+    }
+
+    window.addEventListener("resize", drawChart);
+    renderTable();
+    renderEvents();
+    drawChart();
+  </script>
+</body>
+</html>
+
